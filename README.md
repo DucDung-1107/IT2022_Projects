@@ -1,86 +1,102 @@
-# Project folders — Quick overview
+# IT2022_Projects — ECG Denoising + Arrhythmia Classification & Stock Trend Classification
 
-This document describes the project folder structure and the purpose of the main directories.
+
+Tổng quan dự án: mã nguồn cho (1) **phân loại nhịp tim ECG** với nhiều phương pháp khử nhiễu (median / Kalman / ARIMA / spectral gating / LSTM DAE) và (2) **phân loại xu hướng cổ phiếu theo tuần** bằng các mô hình học máy sâu (ensemble + LSTM + Cross-Attention) dựa trên chuỗi thời gian và đặc trưng denoise.
 
 ## Overview
 
-The project contains code for experiments, datasets, models, and documentation (reports and slides).
+- **Experiments / Notebooks**: chạy và so sánh các ablation/pipeline khác nhau.
+- **src/model/**: các backbone model (ví dụ ECG multi-input BiLSTM + attention, stock backbone + mô-đun denoising).
+- **src/utils/**: utilities chung để đọc dữ liệu, trích đặc trưng, normalize, và tính metrics.
+- **src/methodology/**: các pipeline/method denoising (median, Kalman, ARIMA, spectral gating, ...).
+
+## Project folders — Quick overview
+
+- **src/notebook/**: Jupyter Notebooks (.ipynb) dùng để chạy thí nghiệm.
+- **src/data/**: dữ liệu thô (CSV + annotation txt cho ECG; CSV cho stock).
+- **src/utils/**: hàm chung dùng bởi notebooks/methodology.
 
 ## Metrics (`metrics/`)
 
-Standardised evaluation metrics used across all classification experiments.
+Standardised evaluation metrics dùng xuyên suốt các bài toán phân loại.
 
 | File | Description |
 |------|-------------|
-| `classification_metrics.py` | Directional classification metrics: `evaluate_directional_metrics()` returns accuracy, precision, recall, and F1-score (macro-averaged) for binary directional labels (`up`/`down`). |
+| `classification_metrics.py` | Directional metrics: `evaluate_directional_metrics()` trả về accuracy/precision/recall/F1 (macro) cho nhãn nhị phân (`up`/`down`). |
 
-Additional evaluation functions are available inside each project's utility module (see **Utils** below), which compute a fuller suite including:
-- **Accuracy** — overall correct classification rate.
-- **F1 (macro)** — harmonic mean of precision & recall, averaged per class.
-- **F2 (macro)** — F-beta with β=2, weighting recall higher than precision.
-- **Precision & Recall (macro)** — per-class averages.
-- **AUC-ROC (macro, OvR)** — area under the ROC curve, one-vs-rest macro average.
+Ngoài ra, trong `src/utils/ecg_denoiser_utils.py` có thêm:
+- Accuracy
+- F1 (macro)
+- F2 (macro)
+- Precision/Recall (macro)
+- AUC-ROC (macro, OvR)
 
-## Utils (`utils/`)
-
-Reusable helper modules shared across notebooks and methodology scripts.
+## Utils (`src/utils/`)
 
 | File | Description |
 |------|-------------|
-| `lstm_denoiser_utils.py` | Stock LSTM denoiser helpers: `seed_everything()`, `resample_weekly()`, `make_sequences()`, `make_rolling_sequences()` for time-series windowing. |
-| `ecg_denoiser_utils.py` | ECG denoiser helpers (MIT-BIH dataset): <br>• **Constants** — `FS=360`, `BEAT_LEN=180`, `LABEL_MAP`, `CLASSES_ORDER`, `TRAIN_PATIENTS`, `TEST_PATIENTS`.<br>• **Data loading** — `load_record()`, `build_per_patient_beats()`, `build_dataset()`, `beats_to_arrays()`.<br>• **Preprocessing** — `remove_baseline()` (median filter), `bandpass_filter()`, `preprocess_signal()`.<br>• **Feature extraction** — `compute_rr_bpm_zscore()`, `feat_morph()`, `feat_wavelet()`, `extract_handcrafted()`.<br>• **Sequence building** — `build_rr_sequences()` for per-patient RR-interval windows.<br>• **Normalisation** — `zscore_waveform()` (per-beat), `standardize_split()` (RR-sequence).<br>• **SMOTE** — `apply_smote_multi()` for multi-input (waveform + features + sequence) oversampling.<br>• **Evaluation** — `evaluate_predictions()` (accuracy, F1, F2, AUC-ROC), `print_metrics()`. |
+| `lstm_denoiser_utils.py` | Stock: `seed_everything()`, `resample_weekly()`, `make_sequences()`, `make_rolling_sequences()` |
+| `ecg_denoiser_utils.py` | ECG: constants (FS=360, BEAT_LEN=180, ...) + load/preprocess/features/sequence + SMOTE + evaluation |
 
-## Folder structure
+## ECG pipeline (mức ý tưởng)
 
-- **assets/**: place PDF reports and slide decks (PPTX, PDF).
-- **metrics/**: evaluation metric implementations for classification tasks.
-- **utils/**: shared utility functions (data loading, preprocessing, model helpers) reused across experiments.
-- **src/**: main source directory containing:
-  - **src/data/**: raw data files (CSV, annotation text files, etc.).
-  - **src/methodology/**: implementations of methods and denoisers used in experiments.
-  - **src/model/**: backbone model code used for inference and related utilities.
-  - **src/notebook/**: Jupyter Notebooks (.ipynb) for running experiments and reproducing results.
-  - **src/preprocess/**: data preprocessing scripts (cleaning, normalization, signal extraction).
-  - **src/eda/**: scripts and notebooks for exploratory data analysis and visualization.
+Trong ECG, mỗi ablation thường giữ nguyên phần dữ liệu nhịp tim và classifier, chỉ thay đổi “stream waveform” theo phương pháp khử nhiễu.
 
-  ## Naming conventions and subfolders
+- **Chia dữ liệu theo patient** (train/test): dùng MIT-BIH CSV + `*annotations.txt`.
+- **Preprocess**: remove baseline (median filter) + bandpass.
+- **Segment beat**: lấy cửa sổ quanh R-peak (BEAT_LEN=180).
+- **Features**: RR/BPM/RR_z + handcrafted waveform features.
+- **Model**: Multi-Input BiLSTM + Attention (waveform + RR-sequence + handcrafted features) hoặc các ablation/denoising variants.
 
-  Follow these conventions to keep the project consistent:
+Ví dụ denoising methods nằm trong:
+- `src/model/ecg/` (denoiser + model backbone)
+- `src/methodology/ecg/` (pipeline phương pháp)
+- `src/notebook/ecg/` (thí nghiệm)
 
-  - **Folder layout**: For each of the following folders create two subfolders: `ecg/` and `stock/`.
-    - `src/eda/ecg/`, `src/eda/stock/`
-    - `src/methodology/ecg/`, `src/methodology/stock/`
-    - `src/model/ecg/`, `src/model/stock/`
-    - `src/notebook/ecg/`, `src/notebook/stock/`
-    - `src/preprocess/ecg/`, `src/preprocess/stock/`
+## Stock pipeline (mức ý tưởng)
 
-  - **File naming examples**:
-    - Method implementations: `method.py` (replace with descriptive names like `denoiser_wavelet.py`, `method_bayesian.py`).
-    - Notebooks: use `experiment_<data>_<method>.ipynb`, e.g. `experiment_ecg_wavelet.ipynb` or `experiment_stock_lstm.ipynb`.
-    - Models: `model_<backbone>.py` or `backbone_<name>.py`, e.g. `model_unet.py`.
-    - Preprocessing scripts: `preprocess_<step>.py`, e.g. `preprocess_bandpass.py`.
-    - EDA scripts/notebooks: `eda_<data>_<view>.py` or `eda_<data>_<view>.ipynb`, e.g. `eda_ecg_overview.ipynb`.
+Trong Stock trend classification (binary `up`/`down`) pipeline gồm:
+- **Resample theo tuần** (W-FRI)
+- **Label** từ weekly return với ngưỡng % (ví dụ SIGNAL_THR=2.0)
+- **Denoise** chuỗi close theo Adaptive Kalman Filter (walk-forward an toàn)
+- **Feature engineering** trên chuỗi đã denoise (kf_price)
+- **Model**: ensemble (LightGBM + RandomForest) và/hoặc LSTM DualStream + Cross-Attention
 
-  Keeping this structure makes it easier to find code and reproduce experiments.
+## Naming conventions & subfolders
+
+- Mỗi thư mục theo hướng dữ liệu (ecg/stock) có cặp đối xứng:
+  - `src/eda/ecg/` , `src/eda/stock/`
+  - `src/methodology/ecg/` , `src/methodology/stock/`
+  - `src/model/ecg/` , `src/model/stock/`
+  - `src/notebook/ecg/` , `src/notebook/stock/`
+  - `src/preprocess/ecg/` , `src/preprocess/stock/`
 
 ## Quick start
 
-- Open notebooks in `src/notebook/` with Jupyter Notebook or JupyterLab to run experiments.
-- If a `requirements.txt` or `environment.yml` exists, create a virtual environment and install dependencies:
+### 1) Cài môi trường
 
 ```powershell
 python -m venv .venv
-.\\.venv\\Scripts\\Activate.ps1
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-- Put final report and slides into `assets/` (PDF, PPTX, etc.).
+### 2) Chuẩn bị dữ liệu
+
+- ECG: nằm sẵn tại `src/data/ecg_data/` (MIT-BIH CSV + `*annotations.txt`).
+- Stock: nằm sẵn tại `src/data/stock/` (ví dụ `FPT raw.csv`).
+
+### 3) Chạy notebook chính
+
+- ECG median denoiser: `src/notebook/ecg/experiment_ecg_median.ipynb`
+- Stock Adaptive Kalman + LSTM DualStream: `src/notebook/stock/experiment_stock_kalman.ipynb`
+
+Thông thường output (hình/CSV summary) sẽ được lưu trong thư mục `outputs/` hoặc trong `/kaggle/working` tuỳ notebook.
+
+- Final report & slides: đặt vào `assets/` (PDF, PPTX, ...).
 
 ## Suggested next steps
 
-- Add a `requirements.txt` if one does not exist to make experiments reproducible.
-- Review notebooks in `src/notebook/` and add run instructions if needed.
+- Bổ sung/chuẩn hoá hướng dẫn chạy cho tất cả notebooks (nên có một mục “Run config” cho từng notebook).
+- Xem thêm các notebook trong `src/notebook/ecg/` và `src/notebook/stock/` để mở rộng ablation.
 
----
-
-If you want the README expanded (badges, example runs, CI instructions, or an experiments template), tell me what to include.
